@@ -1,0 +1,15 @@
+
+# Private notes and prompts
+claude.txt
+
+# SQL schema and migration files
+schema.sql
+migration.sql
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Dependencies and generated files
+node_modules/
+dist/
