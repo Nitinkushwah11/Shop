@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dashboard</title><link rel="stylesheet" href="style.css"></head><body>
-<header><h1 id="title"></h1><div class="row" style="flex:none"><button id="langBtn" onclick="setLang(lang==='en'?'hi':'en')"></button>
+<header><h1 id="title"></h1><div class="row" style="flex:none"><button id="langBtn" onclick="toggleLang()"></button>
 <a class="btn" data-i="storeLink" style="background:#fff;color:#0f766e" href="index.html"></a><button id="out" data-i="logout" style="display:none" onclick="sb.auth.signOut().then(()=>location.reload())"></button></div></header>
 <main id="app"><div id="login" class="card" style="max-width:380px;margin:30px auto"><h3 data-i="staffLogin"></h3>
 <input id="em" type="email" data-p="email"><input id="pw" type="password" data-p="password">
@@ -48,28 +48,29 @@ async function delOwner(id){if(confirm(t("confirmOwner"))){await sb.from("profil
 // ---------- Items & stock ----------
 const prodHTML=()=>`<div class="card"><h3 id="ft">${t("newProduct")}</h3><input type="hidden" id="pid">
  <input id="pn" placeholder="${t("prodName")}" autocomplete="off"><div class="row"><input id="pp" type="number" placeholder="${t("price")}"><input id="ps" type="number" placeholder="${t("stockPh")}"><select id="pu"><option>pcs</option><option>kg</option><option>packet</option><option>litre</option><option>dozen</option></select></div>
+ <select id="pc">${CATS.map(([k,l])=>`<option value="${k}">${t(l)}</option>`).join("")}</select>
  <label class="muted">${t("photoLbl")}</label><input id="pf" type="file" accept="image/*" capture="environment">
  <img id="prev" style="max-width:120px;display:none;border-radius:8px"><div class="row"><button onclick="saveP()">${t("save")}</button><button class="alt" onclick="resetF()">${t("reset")}</button></div><p id="pm" class="out"></p></div><div id="plist"></div>`;
 function bindFile(){$("#pf").onchange=e=>{const f=e.target.files[0];if(f){$("#prev").src=URL.createObjectURL(f);$("#prev").style.display=""}}}
 function shrink(f){return new Promise(r=>{const i=new Image();i.onload=()=>{const s=Math.min(1,800/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);c.toBlob(r,"image/jpeg",.8)};i.src=URL.createObjectURL(f)})}
 async function saveP(){
- const id=$("#pid").value,f=$("#pf").files[0];let row={name:$("#pn").value,price:+$("#pp").value,stock:+$("#ps").value,unit:$("#pu").value};
+ const id=$("#pid").value,f=$("#pf").files[0];let row={name:$("#pn").value,price:+$("#pp").value,stock:+$("#ps").value,unit:$("#pu").value,category:$("#pc").value};
  if(!row.name||$("#pp").value==="")return $("#pm").textContent=t("nameReq");
  if(f){const b=await shrink(f),path=`${me.id}/${Date.now()}.jpg`;const u=await sb.storage.from("products").upload(path,b,{contentType:"image/jpeg"});
   if(u.error)return $("#pm").textContent=u.error.message;row.image_url=sb.storage.from("products").getPublicUrl(path).data.publicUrl}
  const r=id?await sb.from("products").update(row).eq("id",id):await sb.from("products").insert({...row,owner_id:me.id});
  if(r.error)return $("#pm").textContent=r.error.message;resetF();loadP();toast("✓ "+t("saved"));
 }
-function resetF(){["pid","pn","pp","ps","pf"].forEach(i=>$("#"+i).value="");$("#prev").style.display="none";$("#ft").textContent=t("newProduct");$("#pm").textContent=""}
+function resetF(){["pid","pn","pp","ps","pf"].forEach(i=>$("#"+i).value="");$("#pc").value="other";$("#prev").style.display="none";$("#ft").textContent=t("newProduct");$("#pm").textContent=""}
 async function loadP(){
  PL=(await sb.from("products").select("*").order("created_at",{ascending:false})).data||[];
  if(!$("#plist"))return;
- $("#plist").innerHTML=statsHTML()+`<div class="grid">${PL.map(p=>`<div class="card"><img src="${p.image_url||""}"><b>${p.name}</b><div>${money(p.price)}/${p.unit}</div>
+ $("#plist").innerHTML=statsHTML()+`<div class="grid">${PL.map(p=>`<div class="card"><img src="${p.image_url||""}"><b>${p.name}</b><div class="muted">${t("cat_"+(p.category||"other"))}</div><div>${money(p.price)}/${p.unit}</div>
  <div class="${p.stock>0?"":"out"}">${t("stock")}: ${p.stock}</div><div class="row"><button class="alt" onclick="stk('${p.id}',-1)">−1</button><button class="alt" onclick="stk('${p.id}',1)">+1</button></div>
  <div class="row"><button onclick="edit('${p.id}')">${t("edit")}</button><button class="red" onclick="del('${p.id}')">${t("del")}</button></div></div>`).join("")}</div>`;
 }
 async function stk(id,d){const p=PL.find(x=>x.id===id);await sb.from("products").update({stock:Math.max(0,p.stock+d)}).eq("id",id);loadP()}
-function edit(id){const p=PL.find(x=>x.id===id);$("#pid").value=id;$("#pn").value=p.name;$("#pp").value=p.price;$("#ps").value=p.stock;$("#pu").value=p.unit;$("#ft").textContent=t("editProduct");scrollTo(0,0)}
+function edit(id){const p=PL.find(x=>x.id===id);$("#pid").value=id;$("#pn").value=p.name;$("#pp").value=p.price;$("#ps").value=p.stock;$("#pu").value=p.unit;$("#pc").value=p.category||"other";$("#ft").textContent=t("editProduct");scrollTo(0,0)}
 async function del(id){if(confirm(t("confirmDel"))){await sb.from("products").delete().eq("id",id);loadP()}}
 const statsHTML=()=>`<div class="stats"><div class="stat"><b>${PL.length}</b>${t("statItems")}</div><div class="stat"><b>${PL.filter(p=>p.stock>0&&p.stock<=5).length}</b>${t("statLow")}</div><div class="stat"><b>${PL.filter(p=>p.stock<=0).length}</b>${t("outStock")}</div></div>`;
 // ---------- Orders / bills ----------
@@ -79,7 +80,7 @@ async function loadO(){
  $("#olist").innerHTML=(data||[]).map(o=>`<div class="card"><b>${t("bill")} #${o.id}</b> <span class="badge">${t("st_"+o.status)}</span> <span class="muted">${new Date(o.created_at).toLocaleString()}</span>
  <div>👤 ${o.customer_name} • 📞 ${o.phone}</div><div>📍 ${o.address}</div>
  <table>${o.order_items.map(i=>`<tr><td>${i.name}</td><td>${i.qty}</td><td>${money(i.price)}</td><td>${money(i.price*i.qty)}</td></tr>`).join("")}</table><h3>${t("total")} ${money(o.total)}</h3>
- <div class="row noprint"><select onchange="setSt(${o.id},this.value)">${["new","packed","delivered","cancelled"].map(s=>`<option value="${s}" ${s===o.status?"selected":""}>${t("st_"+s)}</option>`).join("")}</select><button class="alt" onclick="print()">🖨 ${t("print")}</button></div></div>`).join("")||`<p>${t("noOrders")}</p>`;
+ <div class="row noprint"><select onchange="setSt(${o.id},this.value)">${["new","packed","delivered","cancelled"].map(s=>`<option value="${s}" ${s===o.status?"selected":""}>${t("st_"+s)}</option>`).join("")}</select><button class="alt" onclick="print()">🖨 ${t("print")}</button>${waLink(o.phone,"")?`<a class="btn" style="background:#128c7e" target="_blank" rel="noopener" href="${waLink(o.phone,t("waStatus").replace("{name}",o.customer_name).replace("{id}",o.id).replace("{status}",t("st_"+o.status)).replace("{total}",money(o.total)).replace("{shop}",SHOP_NAME))}">💬 ${t("waCust")}</a>`:""}</div></div>`).join("")||`<p>${t("noOrders")}</p>`;
 }
 async function setSt(id,s){await sb.from("orders").update({status:s}).eq("id",id);loadO();toast("✓ "+t("saved"))}
 applyLang();start();

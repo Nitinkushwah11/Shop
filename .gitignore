@@ -4,8 +4,7 @@ claude.txt
 gitfeaturebranch.txt
 
 # SQL schema and migration files
-schema.sql
-migration.sql
+
 
 # Environment variables and secrets
 .env
