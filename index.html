@@ -1,18 +1,20 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Store</title><link rel="stylesheet" href="style.css"></head><body>
 <header><h1 id="shopName"></h1><div class="row" style="flex:none">
-<button id="langBtn" onclick="setLang(lang==='en'?'hi':'en')"></button>
+<button id="langBtn" onclick="toggleLang()"></button>
 <button id="ordersBtn" style="display:none" data-i="myOrders" onclick="showOrders()"></button>
 <button onclick="openCart()"><span data-i="cart"></span> (<span id="cc">0</span>)</button>
 <button id="authBtn" data-i="login" onclick="authBtn()"></button></div></header>
 <main><section class="hero"><div><h2 data-i="hero"></h2><p data-i="heroSub"></p></div><span class="emoji">🛍️</span></section>
-<input id="q" type="search" name="search" autocomplete="off" data-p="search" oninput="render()"><div id="list" class="grid" style="margin-top:14px"><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div></div></main>
+<div id="contact" class="contact"></div>
+<input id="q" type="text" inputmode="search" name="shop_item_filter" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" data-p="search" oninput="render()"><div id="cats" class="chips"></div><div id="list" class="grid" style="margin-top:14px"><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div><div class="card sk"></div></div></main>
 <button class="fab" id="fab" onclick="openCart()">🛒 <span id="fabT"></span></button>
 
 <div class="modal" id="mAuth"><div class="card"><h3 id="aT" data-i="loginT"></h3>
-<input id="aName" data-p="fullName" style="display:none" autocomplete="off"><input id="aPhone" data-p="mobile" style="display:none" autocomplete="off">
-<input id="aMail" type="email" data-p="email"><input id="aPass" type="password" data-p="password">
-<div class="row"><button data-i="continue" onclick="doAuth()"></button><button class="alt" id="aTog" data-i="newAcc" onclick="toggleAuth()"></button></div>
+<form id="aForm" autocomplete="on" onsubmit="doAuth();return false">
+<input id="aName" name="name" data-p="fullName" style="display:none" autocomplete="name"><input id="aPhone" name="tel" type="tel" data-p="mobile" style="display:none" autocomplete="tel">
+<input id="aMail" name="email" type="email" data-p="email" autocomplete="username"><input id="aPass" name="password" type="password" data-p="password" autocomplete="current-password">
+<div class="row"><button type="submit" data-i="continue"></button><button type="button" class="alt" id="aTog" data-i="newAcc" onclick="toggleAuth()"></button></div></form>
 <p id="aErr" class="out"></p><button class="alt" data-i="close" onclick="closeM('mAuth')"></button></div></div>
 
 <div class="modal" id="mCart"><div class="card"><h3 data-i="yourCart"></h3><div id="cartList"></div><h3 id="cartTotal"></h3>
@@ -24,7 +26,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script><script src="i18n.js"></script>
 <script>
-let products=[],user=null,profile=null,cart=JSON.parse(localStorage.cart||"{}"),signup=false;
+let products=[],user=null,profile=null,cart=JSON.parse(localStorage.cart||"{}"),signup=false,cat="all";
 const openM=id=>$("#"+id).classList.add("on"),closeM=id=>$("#"+id).classList.remove("on"),isOn=id=>$("#"+id).classList.contains("on");
 function rerender(){render();if(isOn("mCart"))openCart();if(isOn("mOrd"))showOrders()}
 async function init(){
@@ -37,9 +39,18 @@ async function init(){
  render();cc();applyLang();
 }
 let firstR=true;
+const setCat=k=>{cat=k;render()};
+function renderTop(){
+ const has=new Set(products.map(p=>p.category||"other")),L=[["all","allCats"],...CATS.filter(([k])=>has.has(k))];
+ if(!L.some(([k])=>k===cat))cat="all";
+ $("#cats").innerHTML=L.length>2?L.map(([k,l])=>`<button class="chip ${k===cat?"on":""}" onclick="setCat('${k}')">${t(l)}</button>`).join(""):"";
+ const wa=waLink(SHOP_PHONE,t("waHi")),mp=mapLink(),tel=digits(SHOP_PHONE);
+ $("#contact").innerHTML=(wa?`<a class="btn wa" href="${wa}" target="_blank" rel="noopener">💬 ${t("wa")}</a>`:"")+(tel?`<a class="btn" href="tel:+${tel}">📞 ${t("call")}</a>`:"")+(mp?`<a class="btn" href="${mp}" target="_blank" rel="noopener">📍 ${t("loc")}</a>`:"");
+}
 function render(){
+ renderTop();
  const q=$("#q").value.toLowerCase();
- $("#list").innerHTML=products.filter(p=>p.name.toLowerCase().includes(q)).map((p,i)=>{const n=cart[p.id]||0;
+ $("#list").innerHTML=products.filter(p=>(cat==="all"||(p.category||"other")===cat)&&p.name.toLowerCase().includes(q)).map((p,i)=>{const n=cart[p.id]||0;
   const tag=p.stock<=0?`<span class="tag red">${t("outStock")}</span>`:p.stock<=5?`<span class="tag">${t("low").replace("{n}",p.stock)}</span>`:"";
   const act=p.stock<=0?"":n?`<div class="step"><button onclick="step('${p.id}',-1)">−</button><b>${n}</b><button onclick="step('${p.id}',1)">+</button></div>`:`<button class="full" onclick="add('${p.id}')">${t("addCart")}</button>`;
   return `<div class="card pcard ${firstR?"in":""}" style="animation-delay:${i*45}ms">${tag}<img src="${p.image_url||""}" alt=""><div class="pi"><b>${p.name}</b><div class="price">${money(p.price)} <small>/ ${p.unit}</small></div>${act}</div></div>`}).join("")||`<p>${t("noItems")}</p>`;
@@ -70,7 +81,7 @@ async function placeOrder(){
 }
 function authBtn(){if(user){sb.auth.signOut().then(()=>location.reload())}else openM("mAuth")}
 function toggleAuth(){signup=!signup;$("#aT").dataset.i=signup?"signupT":"loginT";$("#aTog").dataset.i=signup?"haveAcc":"newAcc";
- $("#aName").style.display=$("#aPhone").style.display=signup?"":"none";applyLang()}
+ $("#aName").style.display=$("#aPhone").style.display=signup?"":"none";$("#aPass").autocomplete=signup?"new-password":"current-password";applyLang()}
 async function doAuth(){
  const email=$("#aMail").value,password=$("#aPass").value;let r;
  if(signup)r=await sb.auth.signUp({email,password,options:{data:{full_name:$("#aName").value,phone:$("#aPhone").value}}});
@@ -81,9 +92,10 @@ async function doAuth(){
 async function showOrders(){
  const {data}=await sb.from("orders").select("*,order_items(*)").order("created_at",{ascending:false});
  $("#ordList").innerHTML=(data||[]).map(o=>`<div class="card"><b>${t("order")} #${o.id}</b> <span class="badge">${t("st_"+o.status)}</span><div class="muted">${new Date(o.created_at).toLocaleString()}</div>
- ${o.order_items.map(i=>`<div>${i.name} × ${i.qty} = ${money(i.price*i.qty)}</div>`).join("")}<b>${t("total")} ${money(o.total)}</b></div>`).join("")||`<p>${t("noOrders")}</p>`;
+ ${o.order_items.map(i=>`<div>${i.name} × ${i.qty} = ${money(i.price*i.qty)}</div>`).join("")}<b>${t("total")} ${money(o.total)}</b>${SHOP_PHONE?`<div style="margin-top:8px"><a class="btn wa" style="background:#128c7e" href="${waLink(SHOP_PHONE,t("waOrder").replace("{id}",o.id))}" target="_blank" rel="noopener">💬 ${t("orderWA")}</a></div>`:""}</div>`).join("")||`<p>${t("noOrders")}</p>`;
  openM("mOrd");
 }
 document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("on")});
 applyLang();init();
+setTimeout(()=>{const q=$("#q");if(q&&document.activeElement!==q&&q.value){q.value="";render()}},300);
 </script></body></html>
