@@ -1,0 +1,15 @@
+
+# Private notes and prompts
+claude.txt
+gitfeaturebranch.txt
+
+# SQL schema and migration files
+
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Dependencies and generated files
+node_modules/
+dist/
